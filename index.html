@@ -1,0 +1,944 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>TAGGER</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:         #080808;
+      --border:     #1e1e1e;
+      --border-mid: #2a2a2a;
+      --text:       #d0d0d0;
+      --text-dim:   #444;
+      --text-mid:   #666;
+      --accent:     #c6ff00;
+      --danger:     #ff2626;
+      --font:       'IBM Plex Mono', 'Courier New', monospace;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      overflow: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ══════════════════════════════════════
+       LANDING
+    ══════════════════════════════════════ */
+    #landing {
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+    }
+
+    .landing-eyebrow {
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.4em;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      margin-bottom: 36px;
+    }
+
+    #open-btn {
+      appearance: none;
+      background: none;
+      border: 1px solid var(--border-mid);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 1rem;
+      font-weight: 500;
+      letter-spacing: 0.2em;
+      padding: 18px 52px;
+      cursor: pointer;
+      text-transform: uppercase;
+      transition: border-color 0.12s, color 0.12s, background-color 0.12s;
+      outline: none;
+    }
+
+    #open-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    #open-btn:active {
+      background-color: rgba(198, 255, 0, 0.04);
+    }
+
+    .landing-hint {
+      font-size: 0.75rem;
+      color: var(--text-dim);
+      letter-spacing: 0.12em;
+      margin-top: 24px;
+    }
+
+    .landing-hint span { color: var(--text-mid); }
+
+    #error-msg {
+      font-size: 0.8rem;
+      color: var(--danger);
+      letter-spacing: 0.06em;
+      margin-top: 20px;
+      text-align: center;
+      max-width: 420px;
+      line-height: 1.6;
+      display: none;
+    }
+
+    /* Hidden file input fallback */
+    #folder-input { display: none; }
+
+    /* ══════════════════════════════════════
+       VIEWER
+    ══════════════════════════════════════ */
+    #viewer {
+      height: 100vh;
+      display: none;
+      flex-direction: column;
+    }
+
+    #viewer.active { display: flex; }
+
+    /* Progress track */
+    #progress-track {
+      flex-shrink: 0;
+      height: 3px;
+      background: var(--border);
+      position: relative;
+    }
+
+    #progress-fill {
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 0%;
+      background: var(--accent);
+      transition: width 0.06s linear;
+    }
+
+    /* Top bar */
+    #top-bar {
+      flex-shrink: 0;
+      height: 54px;
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      padding: 0 24px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    #counter-left {
+      font-size: 1rem;
+      font-weight: 300;
+      letter-spacing: 0.04em;
+      color: var(--text-mid);
+    }
+
+    #counter-left strong {
+      font-weight: 600;
+      color: var(--text);
+      font-size: 1.1rem;
+    }
+
+    #folder-label {
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.3em;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      text-align: center;
+    }
+
+    #counter-right {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 22px;
+    }
+
+    #pct-label {
+      font-size: 1rem;
+      font-weight: 300;
+      color: var(--text-mid);
+    }
+
+    #bad-count-label {
+      font-size: 0.75rem;
+      font-weight: 500;
+      letter-spacing: 0.08em;
+      color: var(--text-dim);
+      transition: color 0.12s;
+    }
+
+    #bad-count-label.has-bad { color: var(--danger); }
+
+    /* Image area */
+    #image-area {
+      flex: 1;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      transition: background-color 0.2s ease;
+    }
+
+    #image-area.bad-state { background-color: rgba(255, 38, 38, 0.05); }
+
+    /* Flash overlay */
+    #flash-layer {
+      position: absolute;
+      inset: 0;
+      background: var(--danger);
+      opacity: 0;
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    @keyframes flag-flash {
+      0%   { opacity: 0.25; }
+      100% { opacity: 0;    }
+    }
+
+    #flash-layer.flashing {
+      animation: flag-flash 0.25s ease-out forwards;
+    }
+
+    /* Image container */
+    #img-wrap {
+      position: relative;
+      line-height: 0;
+    }
+
+    #main-img {
+      display: block;
+      max-width:  100vw;
+      max-height: calc(100vh - 54px - 3px - 46px);
+      object-fit: contain;
+      transition: opacity 0.07s ease;
+    }
+
+    #main-img.hidden { opacity: 0; }
+
+    /* Red border when flagged */
+    #img-border {
+      position: absolute;
+      inset: 0;
+      border: 3px solid var(--danger);
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.1s;
+      z-index: 2;
+    }
+
+    #img-wrap.flagged #img-border { opacity: 1; }
+
+    /* Excluded badge */
+    #excl-badge {
+      position: absolute;
+      top: 0;
+      left: 0;
+      background: var(--danger);
+      color: #fff;
+      font-family: var(--font);
+      font-size: 0.65rem;
+      font-weight: 600;
+      letter-spacing: 0.25em;
+      padding: 5px 12px 4px;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.1s;
+      z-index: 3;
+      text-transform: uppercase;
+    }
+
+    #img-wrap.flagged #excl-badge { opacity: 1; }
+
+    /* Bottom bar */
+    #bottom-bar {
+      flex-shrink: 0;
+      height: 46px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      border-top: 1px solid var(--border);
+    }
+
+    #filename-label {
+      font-size: 0.8rem;
+      color: var(--text-mid);
+      letter-spacing: 0.04em;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 55%;
+      transition: color 0.1s;
+    }
+
+    #filename-label.bad { color: var(--danger); }
+
+    #kb-hints {
+      display: flex;
+      align-items: center;
+      gap: 28px;
+    }
+
+    .kb {
+      font-size: 0.72rem;
+      color: var(--text-dim);
+      letter-spacing: 0.1em;
+    }
+
+    .kb b {
+      font-family: var(--font);
+      font-weight: 500;
+      font-size: 0.72rem;
+      color: var(--text-mid);
+    }
+
+    /* ══════════════════════════════════════
+       RESUME MODAL
+    ══════════════════════════════════════ */
+    #resume-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(8, 8, 8, 0.93);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 50;
+    }
+
+    #resume-modal.active { display: flex; }
+
+    .modal-box {
+      border: 1px solid var(--border-mid);
+      padding: 52px 60px;
+      max-width: 420px;
+      width: 90%;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .modal-tag {
+      font-size: 0.65rem;
+      font-weight: 600;
+      letter-spacing: 0.35em;
+      color: var(--text-dim);
+      text-transform: uppercase;
+    }
+
+    .modal-body {
+      font-size: 0.95rem;
+      font-weight: 300;
+      line-height: 1.9;
+      color: var(--text);
+    }
+
+    .modal-body .accent { color: var(--accent);  font-weight: 500; }
+    .modal-body .danger { color: var(--danger);  font-weight: 500; }
+
+    .modal-row { display: flex; gap: 12px; }
+
+    .m-btn {
+      flex: 1;
+      appearance: none;
+      background: none;
+      border: 1px solid var(--border-mid);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 0.8rem;
+      font-weight: 500;
+      letter-spacing: 0.18em;
+      padding: 14px 10px;
+      cursor: pointer;
+      text-transform: uppercase;
+      transition: border-color 0.12s, color 0.12s;
+      outline: none;
+    }
+
+    .m-btn:hover       { border-color: var(--accent); color: var(--accent); }
+    .m-btn.destr:hover { border-color: var(--danger); color: var(--danger); }
+
+    /* ══════════════════════════════════════
+       DONE OVERLAY
+    ══════════════════════════════════════ */
+    #done-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(8, 8, 8, 0.96);
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      z-index: 50;
+    }
+
+    #done-overlay.active { display: flex; }
+
+    .done-tag {
+      font-size: 0.65rem;
+      font-weight: 600;
+      letter-spacing: 0.4em;
+      color: var(--accent);
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+
+    .done-info {
+      font-size: 0.95rem;
+      font-weight: 300;
+      color: var(--text);
+      text-align: center;
+      line-height: 2.1;
+    }
+
+    .done-info strong  { font-weight: 500; }
+    .done-info .d-bad  { color: var(--danger);  font-weight: 500; }
+    .done-info .d-good { color: var(--accent);  font-weight: 500; }
+
+    .done-divider {
+      width: 1px;
+      height: 36px;
+      background: var(--border-mid);
+      margin: 6px 0;
+    }
+
+    .done-btn {
+      margin-top: 10px;
+      appearance: none;
+      background: none;
+      border: 1px solid var(--border-mid);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 0.8rem;
+      font-weight: 500;
+      letter-spacing: 0.2em;
+      padding: 15px 36px;
+      cursor: pointer;
+      text-transform: uppercase;
+      transition: border-color 0.12s, color 0.12s;
+      outline: none;
+    }
+
+    .done-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .done-btn + .done-btn { margin-top: 0; }
+
+    .done-note {
+      font-size: 0.65rem;
+      color: var(--text-dim);
+      letter-spacing: 0.08em;
+      margin-top: 4px;
+    }
+  </style>
+</head>
+<body>
+
+<!-- Hidden fallback file input -->
+<input type="file" id="folder-input" webkitdirectory multiple accept="image/*">
+
+<!-- RESUME MODAL -->
+<div id="resume-modal">
+  <div class="modal-box">
+    <span class="modal-tag">Session found</span>
+    <p class="modal-body">
+      Left off at image <span class="accent" id="resume-at">—</span>.<br>
+      <span class="danger" id="resume-bad">0</span> images flagged for removal.
+    </p>
+    <div class="modal-row">
+      <button class="m-btn"       onclick="resumeSession()">Resume</button>
+      <button class="m-btn destr" onclick="freshStart()">Start over</button>
+    </div>
+  </div>
+</div>
+
+<!-- DONE OVERLAY -->
+<div id="done-overlay">
+  <span class="done-tag">Review complete</span>
+  <p class="done-info">
+    <strong id="done-total">0</strong> images reviewed<br>
+    <span class="d-bad" id="done-bad">0</span> flagged for removal
+  </p>
+  <div class="done-divider"></div>
+  <button class="done-btn" onclick="downloadJSON()">Download bad_images.json</button>
+  <p class="done-note" id="done-note"></p>
+  <button class="done-btn" onclick="resetToLanding()" style="margin-top:10px">Open another folder</button>
+</div>
+
+<!-- LANDING -->
+<div id="landing">
+  <span class="landing-eyebrow">Dataset Tagger</span>
+  <button id="open-btn" onclick="openFolder()">Open Folder</button>
+  <span class="landing-hint">
+    <span>arrow keys</span> to navigate &nbsp;&mdash;&nbsp; <span>space</span> to flag
+  </span>
+  <div id="error-msg"></div>
+</div>
+
+<!-- VIEWER -->
+<div id="viewer">
+  <div id="progress-track">
+    <div id="progress-fill"></div>
+  </div>
+
+  <div id="top-bar">
+    <div id="counter-left">
+      <strong id="cur-n">0001</strong>&nbsp;/&nbsp;<span id="total-n">0000</span>
+    </div>
+    <div id="folder-label">—</div>
+    <div id="counter-right">
+      <span id="pct-label">0%</span>
+      <span id="bad-count-label">0 flagged</span>
+    </div>
+  </div>
+
+  <div id="image-area">
+    <div id="flash-layer"></div>
+    <div id="img-wrap">
+      <img id="main-img" src="" alt="">
+      <div id="img-border"></div>
+      <div id="excl-badge">Excluded</div>
+    </div>
+  </div>
+
+  <div id="bottom-bar">
+    <span id="filename-label">—</span>
+    <div id="kb-hints">
+      <span class="kb"><b>← →</b>&nbsp; navigate</span>
+      <span class="kb"><b>space</b>&nbsp; flag / unflag</span>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ═══════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════
+const S = {
+  dirHandle: null,   // FileSystemDirectoryHandle (if FSA mode)
+  files:     [],     // File[] (webkitdirectory) or FileSystemFileHandle[] (FSA)
+  mode:      '',     // 'fsa' | 'input'
+  idx:       0,
+  bad:       new Set(),
+  folder:    '',
+  cache:     {},     // index -> objectURL
+  saving:    false,
+  cooldown:  false
+};
+
+const IMG_EXTS   = new Set(['.jpg','.jpeg','.png','.webp','.gif','.bmp','.avif']);
+const CACHE_WIN  = 8;
+const NAV_DELAY  = 55;
+const FLAG_DELAY = 170;
+const KEY        = () => 'tagger_v1_' + S.folder;
+
+// ═══════════════════════════════════════════
+// DOM
+// ═══════════════════════════════════════════
+const q = id => document.getElementById(id);
+
+const landing      = q('landing');
+const viewer       = q('viewer');
+const resumeModal  = q('resume-modal');
+const doneOverlay  = q('done-overlay');
+const mainImg      = q('main-img');
+const imgWrap      = q('img-wrap');
+const imageArea    = q('image-area');
+const flashLayer   = q('flash-layer');
+const progressFill = q('progress-fill');
+const curN         = q('cur-n');
+const totalN       = q('total-n');
+const pctLabel     = q('pct-label');
+const badCountLbl  = q('bad-count-label');
+const folderLbl    = q('folder-label');
+const filenameLbl  = q('filename-label');
+const resumeAtEl   = q('resume-at');
+const resumeBadEl  = q('resume-bad');
+const doneTotalEl  = q('done-total');
+const doneBadEl    = q('done-bad');
+const doneNoteEl   = q('done-note');
+const errorMsg     = q('error-msg');
+const folderInput  = q('folder-input');
+
+// ═══════════════════════════════════════════
+// OPEN FOLDER — dual approach
+// ═══════════════════════════════════════════
+async function openFolder() {
+  // Never open folder picker while already in the viewer
+  if (viewer.classList.contains('active')) return;
+
+  hideError();
+
+  // Try File System Access API first (allows writing JSON back to folder)
+  if (window.showDirectoryPicker) {
+    try {
+      await openWithFSA();
+      return;
+    } catch (e) {
+      if (e.name === 'AbortError') return; // user cancelled
+      // FSA failed — fall through to input fallback
+      console.warn('FSA failed, using file input fallback:', e.message);
+    }
+  }
+
+  // Fallback: use webkitdirectory input (works on file:// protocol)
+  folderInput.value = '';
+  folderInput.click();
+}
+
+// ── FSA approach ──────────────────────────
+async function openWithFSA() {
+  S.dirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+  S.folder    = S.dirHandle.name;
+  S.mode      = 'fsa';
+  S.cache     = {};
+  S.files     = [];
+
+  for await (const entry of S.dirHandle.values()) {
+    if (entry.kind !== 'file') continue;
+    const dot = entry.name.lastIndexOf('.');
+    if (dot === -1) continue;
+    if (IMG_EXTS.has(entry.name.slice(dot).toLowerCase())) S.files.push(entry);
+  }
+
+  S.files.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+  proceedAfterLoad();
+}
+
+// ── webkitdirectory fallback ───────────────
+folderInput.addEventListener('change', function () {
+  // Ignore if already reviewing
+  if (viewer.classList.contains('active')) return;
+
+  const raw = Array.from(this.files);
+  if (raw.length === 0) return;
+
+  const images = raw.filter(f => {
+    const dot = f.name.lastIndexOf('.');
+    return dot !== -1 && IMG_EXTS.has(f.name.slice(dot).toLowerCase());
+  });
+
+  if (images.length === 0) {
+    showError('No images found in the selected folder.');
+    return;
+  }
+
+  // Folder name from webkitRelativePath
+  S.folder    = images[0].webkitRelativePath.split('/')[0] || images[0].name;
+  S.mode      = 'input';
+  S.dirHandle = null;
+  S.cache     = {};
+  S.files     = images.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+
+  proceedAfterLoad();
+});
+
+// ── Common post-load logic ─────────────────
+function proceedAfterLoad() {
+  if (S.files.length === 0) {
+    showError('No images found in this folder.');
+    return;
+  }
+
+  const saved = loadSession();
+  if (saved && saved.index > 0) {
+    resumeAtEl.textContent  = lpad(saved.index + 1);
+    resumeBadEl.textContent = saved.bad.length;
+    resumeModal.classList.add('active');
+  } else {
+    initFresh();
+  }
+}
+
+// ═══════════════════════════════════════════
+// SESSION PERSISTENCE
+// ═══════════════════════════════════════════
+function loadSession() {
+  try { return JSON.parse(localStorage.getItem(KEY())); } catch { return null; }
+}
+
+function saveSession() {
+  try {
+    localStorage.setItem(KEY(), JSON.stringify({ index: S.idx, bad: [...S.bad] }));
+  } catch {}
+}
+
+function resumeSession() {
+  resumeModal.classList.remove('active');
+  const saved = loadSession();
+  S.idx = Math.min(saved.index, S.files.length - 1);
+  S.bad = new Set(saved.bad);
+  activateViewer();
+  render(true);
+}
+
+function freshStart() {
+  resumeModal.classList.remove('active');
+  initFresh();
+}
+
+function initFresh() {
+  S.idx = 0;
+  S.bad = new Set();
+  activateViewer();
+  render(true);
+}
+
+function activateViewer() {
+  landing.style.display = 'none';
+  viewer.classList.add('active');
+  folderLbl.textContent = S.folder.toUpperCase();
+  totalN.textContent    = lpad(S.files.length);
+  // Remove focus from any button so spacebar doesn't retrigger openFolder()
+  if (document.activeElement) document.activeElement.blur();
+}
+
+function resetToLanding() {
+  doneOverlay.classList.remove('active');
+  viewer.classList.remove('active');
+  landing.style.display = 'flex';
+  S.bad   = new Set();
+  S.files = [];
+  S.cache = {};
+  S.idx   = 0;
+}
+
+// ═══════════════════════════════════════════
+// RENDER
+// ═══════════════════════════════════════════
+async function render(immediate = false) {
+  const idx = S.idx;
+
+  try {
+    // Fade during load (skip on first render)
+    if (!immediate) mainImg.classList.add('hidden');
+
+    // Get or create object URL
+    if (!S.cache[idx]) {
+      let file;
+      if (S.mode === 'fsa') {
+        file = await S.files[idx].getFile();
+      } else {
+        file = S.files[idx]; // already a File object
+      }
+      S.cache[idx] = URL.createObjectURL(file);
+    }
+
+    mainImg.src    = S.cache[idx];
+    mainImg.onload = () => mainImg.classList.remove('hidden');
+
+    // Flag state for this image
+    const name = S.mode === 'fsa' ? S.files[idx].name : S.files[idx].name;
+    const bad  = S.bad.has(name);
+    applyFlagState(bad, name);
+    refreshCounters();
+
+    // Preload neighbours
+    preloadAt(idx + 1);
+    preloadAt(idx + 2);
+    preloadAt(idx - 1);
+    pruneCache(idx);
+
+    saveSession();
+  } catch (e) {
+    console.error('Render error:', e);
+    showError('Error loading image: ' + e.message);
+  }
+}
+
+function applyFlagState(bad, name) {
+  imgWrap.classList.toggle('flagged', bad);
+  imageArea.classList.toggle('bad-state', bad);
+  filenameLbl.textContent = name;
+  filenameLbl.classList.toggle('bad', bad);
+}
+
+function refreshCounters() {
+  const n     = S.idx + 1;
+  const total = S.files.length;
+  const pct   = ((n / total) * 100).toFixed(1);
+
+  curN.textContent         = lpad(n);
+  pctLabel.textContent     = pct + '%';
+  progressFill.style.width = ((n / total) * 100) + '%';
+  badCountLbl.textContent  = S.bad.size + (S.bad.size === 1 ? ' flagged' : ' flagged');
+  badCountLbl.classList.toggle('has-bad', S.bad.size > 0);
+}
+
+function lpad(n) {
+  return String(n).padStart(String(S.files.length).length, '0');
+}
+
+async function preloadAt(idx) {
+  if (idx < 0 || idx >= S.files.length || S.cache[idx]) return;
+  try {
+    let file;
+    if (S.mode === 'fsa') {
+      file = await S.files[idx].getFile();
+    } else {
+      file = S.files[idx];
+    }
+    S.cache[idx] = URL.createObjectURL(file);
+    new Image().src = S.cache[idx];
+  } catch {}
+}
+
+function pruneCache(center) {
+  for (const k in S.cache) {
+    if (Math.abs(parseInt(k, 10) - center) > CACHE_WIN) {
+      URL.revokeObjectURL(S.cache[k]);
+      delete S.cache[k];
+    }
+  }
+}
+
+// ═══════════════════════════════════════════
+// NAVIGATION
+// ═══════════════════════════════════════════
+function navigate(dir) {
+  if (S.cooldown) return;
+  const next = S.idx + dir;
+  if (next < 0 || next >= S.files.length) return;
+  S.idx = next;
+  S.cooldown = true;
+  setTimeout(() => { S.cooldown = false; }, NAV_DELAY);
+  render();
+}
+
+// ═══════════════════════════════════════════
+// FLAG TOGGLE
+// ═══════════════════════════════════════════
+async function toggleFlag() {
+  const name   = S.files[S.idx].name;
+  const wasBad = S.bad.has(name);
+
+  if (wasBad) {
+    S.bad.delete(name);
+    imgWrap.classList.remove('flagged');
+    imageArea.classList.remove('bad-state');
+    filenameLbl.classList.remove('bad');
+  } else {
+    S.bad.add(name);
+    imgWrap.classList.add('flagged');
+    imageArea.classList.add('bad-state');
+    filenameLbl.classList.add('bad');
+
+    // Flash
+    flashLayer.classList.remove('flashing');
+    void flashLayer.offsetWidth;
+    flashLayer.classList.add('flashing');
+
+    // Auto-advance
+    setTimeout(() => {
+      if (S.idx < S.files.length - 1) {
+        navigate(1);
+      } else {
+        showDone();
+      }
+    }, FLAG_DELAY);
+  }
+
+  refreshCounters();
+  saveSession();
+  await saveJSON();
+}
+
+// ═══════════════════════════════════════════
+// SAVE JSON
+// ═══════════════════════════════════════════
+async function saveJSON() {
+  const payload = JSON.stringify([...S.bad].sort(), null, 2);
+
+  if (S.mode === 'fsa' && S.dirHandle) {
+    if (S.saving) return;
+    S.saving = true;
+    try {
+      const fh = await S.dirHandle.getFileHandle('bad_images.json', { create: true });
+      const w  = await fh.createWritable();
+      await w.write(payload);
+      await w.close();
+    } catch (e) {
+      console.error('JSON write failed:', e);
+    } finally {
+      S.saving = false;
+    }
+  }
+  // In 'input' mode, JSON is persisted in localStorage (see saveSession)
+  // and can be downloaded via downloadJSON()
+}
+
+function downloadJSON() {
+  const payload = JSON.stringify([...S.bad].sort(), null, 2);
+  const blob    = new Blob([payload], { type: 'application/json' });
+  const url     = URL.createObjectURL(blob);
+  const a       = document.createElement('a');
+  a.href        = url;
+  a.download    = S.folder + '_bad_images.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// ═══════════════════════════════════════════
+// DONE
+// ═══════════════════════════════════════════
+function showDone() {
+  doneTotalEl.textContent = S.files.length.toLocaleString();
+  doneBadEl.textContent   = S.bad.size.toLocaleString();
+
+  if (S.mode === 'fsa') {
+    doneNoteEl.textContent = 'JSON saved automatically to ' + S.folder + '/bad_images.json';
+  } else {
+    doneNoteEl.textContent = 'Click above to download the JSON file';
+  }
+
+  doneOverlay.classList.add('active');
+}
+
+// ═══════════════════════════════════════════
+// UI HELPERS
+// ═══════════════════════════════════════════
+function showError(msg) {
+  errorMsg.textContent = msg;
+  errorMsg.style.display = 'block';
+}
+
+function hideError() {
+  errorMsg.style.display = 'none';
+}
+
+// ═══════════════════════════════════════════
+// KEYBOARD
+// ═══════════════════════════════════════════
+// Capture phase (true) = fires before any element handler,
+// so e.preventDefault() on Space reliably blocks button activation
+document.addEventListener('keydown', e => {
+  if (!viewer.classList.contains('active'))     return;
+  if (resumeModal.classList.contains('active')) return;
+  if (doneOverlay.classList.contains('active')) return;
+
+  switch (e.key) {
+    case 'ArrowRight': e.preventDefault(); e.stopPropagation(); navigate(+1); break;
+    case 'ArrowLeft':  e.preventDefault(); e.stopPropagation(); navigate(-1); break;
+    case ' ':          e.preventDefault(); e.stopPropagation(); toggleFlag(); break;
+  }
+}, true); // <-- capture phase
+</script>
+</body>
+</html>
